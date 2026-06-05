@@ -4,49 +4,49 @@ overview: Greenfield build of a production-ready Next.js 15 delivery drop automa
 todos:
   - id: scaffold
     content: Scaffold Next.js 15 + Tailwind + shadcn/ui + install all dependencies
-    status: in_progress
+    status: completed
   - id: prisma-schema
     content: Create Prisma schema (User, Driver, Drop, MessageLog, AppSettings), migrations, seed script, lib/prisma.ts
-    status: pending
+    status: completed
   - id: auth
     content: Implement NextAuth v5 credentials auth, login page, middleware route protection
-    status: pending
+    status: completed
   - id: layout
     content: "Build dashboard shell: sidebar, header, mobile nav, toast provider"
-    status: pending
+    status: completed
   - id: validations
     content: Create Zod schemas in lib/validations/ for all entities
-    status: pending
+    status: completed
   - id: drivers-crud
     content: Build drivers list/new/edit pages, server actions, forms, delete/archive dialogs
-    status: pending
+    status: completed
   - id: drops-crud
     content: Build drops list/new/edit pages, server actions, status management
-    status: pending
+    status: completed
   - id: bulk-drops
     content: Build bulk paste parser + table input page with preview and batch create
-    status: pending
+    status: completed
   - id: assign-drops
     content: Build assign-drops page with per-row and bulk driver assignment
-    status: pending
+    status: completed
   - id: whatsapp-service
     content: Implement lib/services/whatsapp.ts + message-template.ts + send-drop API route
-    status: pending
+    status: completed
   - id: send-drops
     content: Build send-drops page with select/send all, resend toggle, transaction-based send action
-    status: pending
+    status: completed
   - id: message-logs
     content: Build message logs page with filters and pagination
-    status: pending
+    status: completed
   - id: webhook
     content: Implement GET/POST /api/whatsapp/webhook with verify token and status updates
-    status: pending
+    status: completed
   - id: settings
     content: Build settings page with AppSettings CRUD server action
-    status: pending
+    status: completed
   - id: dashboard
     content: Build dashboard page with stat cards and recent message logs
-    status: pending
+    status: completed
   - id: deploy-docs
     content: Write README.md and .env.example with Supabase + Vercel + Meta WhatsApp setup guide
     status: pending

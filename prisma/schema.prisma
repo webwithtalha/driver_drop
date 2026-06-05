@@ -1,0 +1,94 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DropStatus {
+  PENDING
+  ASSIGNED
+  SENT
+  FAILED
+  CANCELLED
+  COMPLETED
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Driver {
+  id                 String       @id @default(cuid())
+  name               String
+  phoneNumber        String
+  area               String?
+  preferredPostcodes String[]
+  isActive           Boolean      @default(true)
+  notes              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  drops              Drop[]
+  messageLogs        MessageLog[]
+}
+
+model Drop {
+  id               String     @id @default(cuid())
+  dropNumber       String
+  postcode         String
+  location         String?
+  notes            String?
+  status           DropStatus @default(PENDING)
+  assignedDriverId String?
+  assignedDriver   Driver?    @relation(fields: [assignedDriverId], references: [id])
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  messageLogs      MessageLog[]
+
+  @@index([status])
+  @@index([assignedDriverId])
+}
+
+model MessageLog {
+  id                String        @id @default(cuid())
+  dropId            String
+  driverId          String
+  phoneNumber       String
+  messageBody       String
+  provider          String        @default("whatsapp")
+  providerMessageId String?
+  status            MessageStatus @default(QUEUED)
+  errorMessage      String?
+  createdAt         DateTime      @default(now())
+  drop              Drop          @relation(fields: [dropId], references: [id])
+  driver            Driver        @relation(fields: [driverId], references: [id])
+
+  @@index([dropId])
+  @@index([status])
+}
+
+model AppSettings {
+  id                   String   @id @default("default")
+  whatsappTemplateName String   @default("evri_drop_notification")
+  defaultMessageText   String   @default("Hi {{driverName}}, your Evri drop for tonight:\n\nDrop No: {{dropNumber}}\nLocation/Postcode: {{postcode}}\nNotes: {{notes}}\n\nPlease confirm once received.")
+  defaultNotes         String?
+  businessName         String?
+  managerName          String?
+  updatedAt            DateTime @updatedAt
+}
