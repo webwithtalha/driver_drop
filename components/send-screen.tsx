@@ -9,7 +9,7 @@ import {
   Plus,
   RotateCcw,
   Trash2,
-  UserPlus,
+  Users,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -22,14 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { createDriver } from "@/lib/actions/drivers"
 import {
@@ -42,6 +34,7 @@ import {
   matchPostcodeOption,
 } from "@/lib/constants/postcodes"
 import { parseDropPaste } from "@/lib/services/drop-parser"
+import { cn } from "@/lib/utils"
 import type { QuickSendRow } from "@/lib/validations/quick-send"
 
 type DriverOption = {
@@ -49,6 +42,9 @@ type DriverOption = {
   name: string
   phoneNumber: string
 }
+
+const WA_GREEN =
+  "bg-[#25D366] text-white hover:bg-[#1faa55] focus-visible:ring-[#25D366]/40"
 
 const emptyRow = (): QuickSendRow => ({
   dropNumber: "",
@@ -58,13 +54,49 @@ const emptyRow = (): QuickSendRow => ({
   assignedDriverId: "",
 })
 
-const starterRows = (): QuickSendRow[] => [
-  emptyRow(),
-  emptyRow(),
-  emptyRow(),
-  emptyRow(),
-  emptyRow(),
-]
+const starterRows = (): QuickSendRow[] => [emptyRow(), emptyRow(), emptyRow()]
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  }
+  return name.slice(0, 2).toUpperCase()
+}
+
+function SectionCard({
+  step,
+  icon,
+  title,
+  subtitle,
+  children,
+}: {
+  step: number
+  icon: React.ReactNode
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-tight">{title}</p>
+          {subtitle ? (
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          ) : null}
+        </div>
+        <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
+          {step}
+        </span>
+      </div>
+      {children}
+    </section>
+  )
+}
 
 type SendScreenProps = {
   drivers: DriverOption[]
@@ -75,6 +107,7 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
   const [drivers, setDrivers] = useState(initialDrivers)
   const [rows, setRows] = useState<QuickSendRow[]>(starterRows)
   const [pasteText, setPasteText] = useState("")
+  const [showPaste, setShowPaste] = useState(false)
   const [bulkDriverId, setBulkDriverId] = useState("")
   const [driverName, setDriverName] = useState("")
   const [driverPhone, setDriverPhone] = useState("")
@@ -164,7 +197,8 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
     })
 
     setPasteText("")
-    toast.success(`Added ${pastedRows.length} drop(s) to the table`)
+    setShowPaste(false)
+    toast.success(`Added ${pastedRows.length} drop(s)`)
   }
 
   function applyBulkDriver() {
@@ -198,7 +232,7 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
     )
 
     if (incomplete) {
-      toast.error("Each row needs a drop number, postcode, and driver")
+      toast.error("Each drop needs a number, postcode, and driver")
       return
     }
 
@@ -213,9 +247,6 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
 
     setBundles(result.data?.bundles ?? [])
     setSentDriverIds([])
-    toast.success(
-      `Ready: ${result.data?.bundles.length ?? 0} driver(s) to message`
-    )
   }
 
   async function handleSendToDriver(bundle: DriverSendBundle) {
@@ -236,25 +267,43 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
     router.refresh()
   }
 
+  const filledCount = getFilledRows(rows).length
+
   if (bundles) {
-    const allSent = bundles.every((bundle) =>
+    const sentCount = bundles.filter((bundle) =>
       sentDriverIds.includes(bundle.driverId)
-    )
+    ).length
+    const allSent = sentCount === bundles.length
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Send on WhatsApp</h2>
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
+              Send on WhatsApp
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Tap each driver to open WhatsApp with the message ready, then hit
-              send.
+              Tap a driver to open WhatsApp with the message ready.
             </p>
           </div>
-          <Button variant="outline" onClick={handleStartOver}>
+          <Button variant="outline" size="sm" onClick={handleStartOver}>
             <RotateCcw className="size-4" />
-            Start over
+            <span className="hidden sm:inline">Start over</span>
           </Button>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 text-sm shadow-sm">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-[#25D366] transition-all"
+              style={{
+                width: `${(sentCount / bundles.length) * 100}%`,
+              }}
+            />
+          </div>
+          <span className="shrink-0 font-medium tabular-nums text-muted-foreground">
+            {sentCount}/{bundles.length} sent
+          </span>
         </div>
 
         <div className="space-y-3">
@@ -263,36 +312,41 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
             return (
               <div
                 key={bundle.driverId}
-                className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                className={cn(
+                  "rounded-2xl border bg-card p-4 shadow-sm transition-colors",
+                  sent ? "border-[#25D366]/40" : "border-border/70"
+                )}
               >
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {bundle.driverName}{" "}
-                    <span className="text-muted-foreground">
-                      · {bundle.dropCount} drop
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+                    {initials(bundle.driverName)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{bundle.driverName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {bundle.dropCount} drop
                       {bundle.dropCount === 1 ? "" : "s"}
-                    </span>
-                  </p>
-                  <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
-                    {bundle.message}
-                  </p>
-                </div>
-                <Button
-                  variant={sent ? "outline" : "default"}
-                  onClick={() => handleSendToDriver(bundle)}
-                  className="shrink-0 sm:w-44"
-                >
+                    </p>
+                  </div>
                   {sent ? (
-                    <>
+                    <span className="flex items-center gap-1 text-xs font-medium text-[#1faa55]">
                       <CheckCircle2 className="size-4" />
-                      Sent · open again
-                    </>
-                  ) : (
-                    <>
-                      <MessageCircle className="size-4" />
-                      Send to {bundle.driverName.split(" ")[0]}
-                    </>
-                  )}
+                      Sent
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 whitespace-pre-line rounded-2xl rounded-tl-sm bg-muted/70 p-3 text-sm text-foreground/90">
+                  {bundle.message}
+                </div>
+
+                <Button
+                  onClick={() => handleSendToDriver(bundle)}
+                  className={cn("mt-3 w-full", !sent && WA_GREEN)}
+                  variant={sent ? "outline" : "default"}
+                >
+                  <MessageCircle className="size-4" />
+                  {sent ? "Open again" : `Send to ${bundle.driverName.split(" ")[0]}`}
                 </Button>
               </div>
             )
@@ -300,8 +354,8 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
         </div>
 
         {allSent ? (
-          <div className="flex items-center gap-2 rounded-lg border border-green-600/30 bg-green-600/5 p-4 text-sm">
-            <CheckCircle2 className="size-4 text-green-600" />
+          <div className="flex items-center gap-2 rounded-xl border border-[#25D366]/30 bg-[#25D366]/10 p-4 text-sm font-medium">
+            <CheckCircle2 className="size-4 text-[#1faa55]" />
             All drivers messaged. Start a new batch when ready.
           </div>
         ) : null}
@@ -310,21 +364,32 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-3 rounded-lg border p-4">
-        <div className="flex items-center gap-2">
-          <UserPlus className="size-4 text-muted-foreground" />
-          <h2 className="font-medium">Drivers</h2>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
+    <div className="space-y-5 pb-24">
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
+          New drops
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Add drops, pick a driver, and send them on WhatsApp.
+        </p>
+      </div>
+
+      <SectionCard
+        step={1}
+        icon={<Users className="size-5" />}
+        title="Drivers"
+        subtitle="Saved drivers you can assign drops to"
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             placeholder="Driver name"
             value={driverName}
             onChange={(event) => setDriverName(event.target.value)}
           />
           <Input
-            placeholder="Phone (e.g. 07123 456789)"
+            placeholder="Phone e.g. 07123 456789"
             value={driverPhone}
+            inputMode="tel"
             onChange={(event) => setDriverPhone(event.target.value)}
           />
           <Button
@@ -332,187 +397,254 @@ export function SendScreen({ drivers: initialDrivers }: SendScreenProps) {
             variant="secondary"
             onClick={handleAddDriver}
             disabled={isAddingDriver}
-            className="sm:w-36"
+            className="sm:w-32"
           >
-            {isAddingDriver ? "Adding..." : "Add driver"}
+            <Plus className="size-4" />
+            {isAddingDriver ? "Adding" : "Add"}
           </Button>
         </div>
         {drivers.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {drivers.map((driver) => (
               <span
                 key={driver.id}
-                className="rounded-full border bg-muted/50 px-3 py-1 text-sm"
+                className="flex items-center gap-2 rounded-full border bg-background px-2.5 py-1 text-xs"
               >
-                {driver.name} · {driver.phoneNumber}
+                <span className="flex size-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+                  {initials(driver.name)}
+                </span>
+                <span className="font-medium">{driver.name}</span>
+                <span className="text-muted-foreground">
+                  {driver.phoneNumber}
+                </span>
               </span>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Add your drivers above before sending drops.
+          <p className="mt-3 text-xs text-muted-foreground">
+            Add at least one driver to start sending.
           </p>
         )}
-      </section>
+      </SectionCard>
 
-      <section className="space-y-3 rounded-lg border bg-muted/30 p-4">
-        <div className="flex items-center gap-2">
-          <ClipboardPaste className="size-4 text-muted-foreground" />
-          <h2 className="font-medium">Paste drops</h2>
+      <SectionCard
+        step={2}
+        icon={<ClipboardPaste className="size-5" />}
+        title="Drops"
+        subtitle="Enter manually or paste a list"
+      >
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Select
+            value={bulkDriverId || undefined}
+            onValueChange={(value) => setBulkDriverId(value ?? "")}
+          >
+            <SelectTrigger className="w-full sm:max-w-[14rem]">
+              <SelectValue placeholder="Assign all rows to…" />
+            </SelectTrigger>
+            <SelectContent>
+              {drivers.map((driver) => (
+                <SelectItem key={driver.id} value={driver.id}>
+                  {driver.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={applyBulkDriver}
+              className="flex-1 sm:flex-none"
+            >
+              Apply to all
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPaste((value) => !value)}
+              className="flex-1 sm:flex-none"
+            >
+              <ClipboardPaste className="size-4" />
+              Paste
+            </Button>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          One drop per line, e.g. <code>Drop 123 - IP4 1LS</code> or{" "}
-          <code>Drop 456 - IP1 2AB, Tesco Extra</code>
-        </p>
-        <Textarea
-          rows={5}
-          placeholder={"Drop 123 - IP4 1LS\nDrop 456 - IP1 2AB, Tesco Extra"}
-          value={pasteText}
-          onChange={(event) => setPasteText(event.target.value)}
-        />
-        {pastePreview.unparsedLines.length > 0 ? (
-          <p className="text-sm text-destructive">
-            {pastePreview.unparsedLines.length} line(s) could not be parsed
-          </p>
+
+        {showPaste ? (
+          <div className="mb-3 space-y-2 rounded-xl border bg-muted/40 p-3">
+            <p className="text-xs text-muted-foreground">
+              One per line, e.g. <code>Drop 123 - CB9 8QL</code>
+            </p>
+            <Textarea
+              rows={4}
+              placeholder={"Drop 123 - CB9 8QL\nDrop 456 - IP2 0UG"}
+              value={pasteText}
+              onChange={(event) => setPasteText(event.target.value)}
+            />
+            {pastePreview.unparsedLines.length > 0 ? (
+              <p className="text-xs text-destructive">
+                {pastePreview.unparsedLines.length} line(s) could not be parsed
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleAddPasteToTable}
+              disabled={pastePreview.rows.length === 0}
+            >
+              Add {pastePreview.rows.length || ""} to list
+            </Button>
+          </div>
         ) : null}
+
+        <div className="hidden grid-cols-[6rem_1fr_1fr_1fr_2.5rem] gap-2 px-1 pb-2 text-xs font-medium text-muted-foreground sm:grid">
+          <span>Drop #</span>
+          <span>Postcode</span>
+          <span>Description</span>
+          <span>Driver</span>
+          <span />
+        </div>
+
+        <div className="space-y-2">
+          {rows.map((row, index) => (
+            <div
+              key={index}
+              className="rounded-xl border bg-background p-3 sm:border-0 sm:bg-transparent sm:p-0"
+            >
+              <div className="mb-2 flex items-center justify-between sm:hidden">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Drop {index + 1}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => removeRow(index)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-[6rem_1fr_1fr_1fr_2.5rem] sm:items-center">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground sm:hidden">
+                    Drop #
+                  </span>
+                  <Input
+                    placeholder="123"
+                    value={row.dropNumber}
+                    inputMode="numeric"
+                    onChange={(event) =>
+                      updateRow(index, { dropNumber: event.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground sm:hidden">
+                    Postcode
+                  </span>
+                  <Select
+                    value={row.postcode || undefined}
+                    onValueChange={(value) =>
+                      updateRow(index, { postcode: value ?? "" })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POSTCODE_OPTIONS.map((postcode) => (
+                        <SelectItem key={postcode} value={postcode}>
+                          {postcode}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground sm:hidden">
+                    Description
+                  </span>
+                  <Input
+                    placeholder="Optional"
+                    value={row.notes ?? row.location ?? ""}
+                    onChange={(event) => {
+                      const value = event.target.value || null
+                      updateRow(index, { notes: value, location: value })
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground sm:hidden">
+                    Driver
+                  </span>
+                  <Select
+                    value={row.assignedDriverId || undefined}
+                    onValueChange={(value) =>
+                      updateRow(index, { assignedDriverId: value ?? "" })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {drivers.map((driver) => (
+                        <SelectItem key={driver.id} value={driver.id}>
+                          {driver.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => removeRow(index)}
+                  className="hidden sm:flex"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
         <Button
           type="button"
-          variant="secondary"
-          onClick={handleAddPasteToTable}
-          disabled={pastePreview.rows.length === 0}
+          variant="outline"
+          size="sm"
+          onClick={addRow}
+          className="mt-3 w-full sm:w-auto"
         >
-          Add to table
+          <Plus className="size-4" />
+          Add drop
         </Button>
-      </section>
+      </SectionCard>
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-2">
-            <h2 className="font-medium">Assign all rows to</h2>
-            <Select
-              value={bulkDriverId || undefined}
-              onValueChange={(value) => setBulkDriverId(value ?? "")}
-            >
-              <SelectTrigger className="w-full sm:max-w-xs">
-                <SelectValue placeholder="Choose a driver" />
-              </SelectTrigger>
-              <SelectContent>
-                {drivers.map((driver) => (
-                  <SelectItem key={driver.id} value={driver.id}>
-                    {driver.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button type="button" variant="outline" onClick={applyBulkDriver}>
-            Apply to all rows
-          </Button>
-        </div>
-
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-28">Drop #</TableHead>
-                <TableHead className="w-36">Postcode</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="w-44">Driver</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row, index) => (
-                <TableRow key={index}>
-                  <TableCell>
-                    <Input
-                      placeholder="123"
-                      value={row.dropNumber}
-                      onChange={(event) =>
-                        updateRow(index, { dropNumber: event.target.value })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={row.postcode || undefined}
-                      onValueChange={(value) =>
-                        updateRow(index, { postcode: value ?? "" })
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Postcode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {POSTCODE_OPTIONS.map((postcode) => (
-                          <SelectItem key={postcode} value={postcode}>
-                            {postcode}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      placeholder="Optional"
-                      value={row.notes ?? row.location ?? ""}
-                      onChange={(event) => {
-                        const value = event.target.value || null
-                        updateRow(index, { notes: value, location: value })
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={row.assignedDriverId || undefined}
-                      onValueChange={(value) =>
-                        updateRow(index, { assignedDriverId: value ?? "" })
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choose" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {drivers.map((driver) => (
-                          <SelectItem key={driver.id} value={driver.id}>
-                            {driver.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeRow(index)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Button type="button" variant="outline" onClick={addRow}>
-            <Plus className="size-4" />
-            Add row
-          </Button>
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-background/90 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-3 sm:px-6">
+          <p className="hidden text-sm text-muted-foreground sm:block">
+            {filledCount} drop{filledCount === 1 ? "" : "s"} ready
+          </p>
           <Button
             size="lg"
             onClick={handlePrepare}
             disabled={isPreparing}
-            className="sm:min-w-52"
+            className={cn("ml-auto w-full sm:w-auto sm:min-w-56", WA_GREEN)}
           >
             <MessageCircle className="size-4" />
-            {isPreparing ? "Preparing..." : "Prepare WhatsApp messages"}
+            {isPreparing ? "Preparing…" : "Prepare WhatsApp messages"}
           </Button>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
