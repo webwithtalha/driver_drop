@@ -1,3 +1,7 @@
+function normalizeDatabaseUrl(url: string): string {
+  return url.trim().replace(/^['"]|['"]$/g, "")
+}
+
 function decodePrismaPostgresUrl(url: string): string {
   const parsed = new URL(url)
   const apiKey = parsed.searchParams.get("api_key")
@@ -6,15 +10,25 @@ function decodePrismaPostgresUrl(url: string): string {
     throw new Error("Invalid prisma+postgres DATABASE_URL: missing api_key")
   }
 
-  const payload = JSON.parse(
-    Buffer.from(apiKey, "base64").toString("utf8")
-  ) as { databaseUrl?: string }
+  try {
+    const payload = JSON.parse(
+      Buffer.from(apiKey, "base64").toString("utf8")
+    ) as { databaseUrl?: string }
 
-  if (!payload.databaseUrl) {
-    throw new Error("Invalid prisma+postgres DATABASE_URL: missing databaseUrl")
+    if (!payload.databaseUrl) {
+      throw new Error("Invalid prisma+postgres DATABASE_URL: missing databaseUrl")
+    }
+
+    return payload.databaseUrl
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        "Invalid prisma+postgres DATABASE_URL: api_key is not valid base64 JSON. For production, use a direct postgresql:// connection string."
+      )
+    }
+
+    throw error
   }
-
-  return payload.databaseUrl
 }
 
 export function getPgConnectionString(
@@ -24,13 +38,20 @@ export function getPgConnectionString(
     throw new Error("DATABASE_URL is not set")
   }
 
-  if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
-    return url
+  const normalized = normalizeDatabaseUrl(url)
+
+  if (
+    normalized.startsWith("postgres://") ||
+    normalized.startsWith("postgresql://")
+  ) {
+    return normalized
   }
 
-  if (url.startsWith("prisma+postgres://")) {
-    return decodePrismaPostgresUrl(url)
+  if (normalized.startsWith("prisma+postgres://")) {
+    return decodePrismaPostgresUrl(normalized)
   }
 
-  throw new Error(`Unsupported DATABASE_URL protocol: ${url.split(":")[0]}`)
+  throw new Error(
+    `Unsupported DATABASE_URL protocol: ${normalized.split(":")[0]}. Use postgresql:// for production.`
+  )
 }
